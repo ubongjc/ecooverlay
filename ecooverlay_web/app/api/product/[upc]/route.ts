@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { Role, Permission, hasPermission } from '@/lib/rbac'
+import { sanitizeUPC } from '@/lib/security'
 
 const productSchema = z.object({
-  name: z.string().min(1),
-  brand: z.string().optional(),
-  category: z.string().optional(),
-  imageUrl: z.string().url().optional(),
-  description: z.string().optional(),
+  name: z.string().min(1).max(200),
+  brand: z.string().max(100).optional(),
+  category: z.string().max(100).optional(),
+  imageUrl: z.string().url().optional().or(z.literal('')),
+  description: z.string().max(1000).optional(),
 })
 
 export async function GET(
@@ -16,7 +19,17 @@ export async function GET(
 ) {
   try {
     const { upc } = await params
-    
+
+    // Validate UPC format
+    try {
+      sanitizeUPC(upc)
+    } catch (err) {
+      return NextResponse.json(
+        { error: 'Invalid UPC format' },
+        { status: 400 }
+      )
+    }
+
     const product = await prisma.product.findUnique({
       where: { upc },
       include: {
@@ -63,16 +76,47 @@ export async function POST(
   { params }: { params: Promise<{ upc: string }> }
 ) {
   try {
-    const { upc } = await params
-    const body = await request.json()
+    // Check authentication and authorization
+    const session = await auth()
+    if (!session?.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+    })
+
+    if (!user || !hasPermission(user.role as Role, Permission.CREATE_PRODUCTS)) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      )
+    }
+
+    const { upc } = await params
+
+    // Validate UPC format
+    try {
+      sanitizeUPC(upc)
+    } catch (err) {
+      return NextResponse.json(
+        { error: 'Invalid UPC format' },
+        { status: 400 }
+      )
+    }
+
+    const body = await request.json()
     const validatedData = productSchema.parse(body)
 
+    // Remove empty imageUrl
+    const dataToCreate = {
+      upc,
+      ...validatedData,
+      ...(validatedData.imageUrl === '' && { imageUrl: null }),
+    }
+
     const product = await prisma.product.create({
-      data: {
-        upc,
-        ...validatedData,
-      },
+      data: dataToCreate,
     })
 
     return NextResponse.json(product, { status: 201 })
@@ -97,14 +141,47 @@ export async function PUT(
   { params }: { params: Promise<{ upc: string }> }
 ) {
   try {
-    const { upc } = await params
-    const body = await request.json()
+    // Check authentication and authorization
+    const session = await auth()
+    if (!session?.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+    })
+
+    if (!user || !hasPermission(user.role as Role, Permission.UPDATE_PRODUCTS)) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      )
+    }
+
+    const { upc } = await params
+
+    // Validate UPC format
+    try {
+      sanitizeUPC(upc)
+    } catch (err) {
+      return NextResponse.json(
+        { error: 'Invalid UPC format' },
+        { status: 400 }
+      )
+    }
+
+    const body = await request.json()
     const validatedData = productSchema.partial().parse(body)
+
+    // Remove empty imageUrl
+    const dataToUpdate = {
+      ...validatedData,
+      ...(validatedData.imageUrl === '' && { imageUrl: null }),
+    }
 
     const product = await prisma.product.update({
       where: { upc },
-      data: validatedData,
+      data: dataToUpdate,
     })
 
     return NextResponse.json(product)

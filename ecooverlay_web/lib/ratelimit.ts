@@ -87,27 +87,58 @@ class InMemoryRateLimiter {
   private requests: Map<string, number[]> = new Map()
   private windowMs: number
   private maxRequests: number
+  private cleanupInterval: NodeJS.Timeout
 
   constructor(maxRequests: number, windowMs: number) {
     this.maxRequests = maxRequests
     this.windowMs = windowMs
+
+    // Cleanup stale entries every 5 minutes to prevent memory leak
+    this.cleanupInterval = setInterval(() => {
+      this.cleanup()
+    }, 5 * 60 * 1000)
+  }
+
+  private cleanup() {
+    const now = Date.now()
+    const keysToDelete: string[] = []
+
+    for (const [identifier, timestamps] of this.requests.entries()) {
+      // Remove expired timestamps
+      const validTimestamps = timestamps.filter(time => now - time < this.windowMs)
+
+      if (validTimestamps.length === 0) {
+        keysToDelete.push(identifier)
+      } else {
+        this.requests.set(identifier, validTimestamps)
+      }
+    }
+
+    // Delete identifiers with no valid timestamps
+    keysToDelete.forEach(key => this.requests.delete(key))
   }
 
   async check(identifier: string): Promise<boolean> {
     const now = Date.now()
     const requests = this.requests.get(identifier) || []
-    
+
     // Filter out old requests
     const validRequests = requests.filter(time => now - time < this.windowMs)
-    
+
     if (validRequests.length >= this.maxRequests) {
       return false
     }
-    
+
     validRequests.push(now)
     this.requests.set(identifier, validRequests)
-    
+
     return true
+  }
+
+  // Method to clear the interval when shutting down
+  destroy() {
+    clearInterval(this.cleanupInterval)
+    this.requests.clear()
   }
 }
 

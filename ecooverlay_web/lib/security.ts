@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import crypto from 'crypto'
 
 // Security headers configuration
 export function getSecurityHeaders() {
@@ -264,12 +265,16 @@ export function validateWebhookSignature(
   secret: string
 ): boolean {
   try {
-    const crypto = require('crypto')
     const expectedSignature = crypto
       .createHmac('sha256', secret)
       .update(payload)
       .digest('hex')
-    
+
+    // Check if lengths match before timing-safe comparison to avoid errors
+    if (signature.length !== expectedSignature.length) {
+      return false
+    }
+
     return crypto.timingSafeEqual(
       Buffer.from(signature),
       Buffer.from(expectedSignature)
