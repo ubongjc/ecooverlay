@@ -1,0 +1,98 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+// User and authentication
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  role          String    @default("user")
+  subscription  String?   @default("free")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("users")
+}
+
+// Product catalog
+model Product {
+  id          String      @id @default(cuid())
+  upc         String      @unique
+  name        String
+  brand       String?
+  category    String?
+  imageUrl    String?
+  description String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  footprints  Footprint[]
+  alternatives AltSuggestion[] @relation("OriginalProduct")
+  alternativesFor AltSuggestion[] @relation("AlternativeProduct")
+  
+  @@index([upc])
+  @@index([brand])
+  @@index([category])
+  @@map("products")
+}
+
+// Carbon footprint data
+model Footprint {
+  id          String    @id @default(cuid())
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // GHG Protocol scopes
+  scope1      Float?    // Direct emissions
+  scope2      Float?    // Indirect emissions from energy
+  scope3      Float?    // Other indirect emissions
+  totalCo2e   Float     // Total CO2 equivalent in kg
+  
+  // Metadata
+  method      String    // Calculation method used
+  sources     Json      // Array of source citations
+  confidence  Float     @default(0.5) // 0-1 confidence score
+  uncertainty Float?    // Uncertainty band (+/-)
+  
+  verified    Boolean   @default(false)
+  verifiedBy  String?
+  verifiedAt  DateTime?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([productId])
+  @@map("footprints")
+}
+
+// Alternative product suggestions
+model AltSuggestion {
+  id              String    @id @default(cuid())
+  productId       String
+  product         Product   @relation("OriginalProduct", fields: [productId], references: [id], onDelete: Cascade)
+  
+  altProductId    String
+  altProduct      Product   @relation("AlternativeProduct", fields: [altProductId], references: [id], onDelete: Cascade)
+  
+  carbonDelta     Float     // Difference in CO2e (negative is better)
+  reason          String    // Why this alternative is better
+  confidence      Float     @default(0.5)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([productId])
+  @@index([altProductId])
+  @@map("alt_suggestions")
+}
