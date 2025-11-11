@@ -883,3 +883,329 @@ This is a proprietary application. For bugs or feature requests, contact the dev
 ---
 
 **Built with 🌱 by the EcoOverlay Team**
+
+---
+
+## Recent Updates - Version 1.1.0 (2025-11-11)
+
+### 🔐 World-Class Security Infrastructure
+
+#### Rate Limiting
+- **Redis-based rate limiting** with Upstash integration
+- **In-memory fallback** for development environments
+- **Per-endpoint limits**:
+  - API endpoints: 100 requests / 15 minutes
+  - Authentication: 5 attempts / 15 minutes  
+  - Data export: 3 requests / 24 hours
+  - Webhooks: 1000 requests / minute
+  - Scan (free tier): 50 scans / 24 hours
+- **Role-based rate limits**: Higher limits for premium/admin users
+- **Automatic blocking** with retry-after headers
+
+#### Security Headers
+- **Content Security Policy (CSP)**: Strict policy preventing XSS
+- **HSTS**: HTTP Strict Transport Security with preload
+- **X-Frame-Options**: DENY to prevent clickjacking
+- **X-Content-Type-Options**: nosniff
+- **X-XSS-Protection**: Enhanced XSS filtering
+- **Referrer-Policy**: strict-origin-when-cross-origin
+- **Permissions-Policy**: Restricted camera/microphone access
+
+#### Input Validation & Sanitization
+- **SQL Injection Protection**: Prisma ORM with parameterized queries
+- **XSS Protection**: React auto-escaping + output encoding
+- **CSRF Protection**: SameSite cookies + token validation
+- **Input sanitization**: Remove null bytes, control characters
+- **Email validation**: RFC-compliant validation
+- **UPC validation**: Format checking (UPC-A, UPC-E, EAN-13)
+- **Password strength**: 12+ characters, complexity requirements
+
+#### Threat Detection
+- **Suspicious pattern detection**: Directory traversal, code injection
+- **Automated blocking**: Malicious requests rejected immediately
+- **Security event logging**: Complete audit trail
+- **IP tracking**: Client IP extraction from various headers
+- **User-Agent analysis**: Bot and attack detection
+
+#### CORS & Origin Control
+- **Whitelist-only origins**: Configurable allowed domains
+- **Credentials support**: Secure cookie handling
+- **Preflight handling**: Proper OPTIONS request support
+- **Custom headers**: Authorization, X-Requested-With
+
+### 👥 Role-Based Access Control (RBAC)
+
+#### Role Hierarchy
+1. **User** (Free Tier)
+   - Read products and footprints
+   - Create scans (50/day limit)
+   - Manage own data
+   - Basic analytics
+
+2. **Premium** ($2.99/month)
+   - All User permissions
+   - Unlimited scans
+   - Advanced analytics
+   - API access (500 req/15min)
+   - Data export
+   - Priority support
+
+3. **Moderator**
+   - All Premium permissions
+   - Create/update products
+   - Verify footprints
+   - Moderate content
+   - View all analytics
+
+4. **Admin**
+   - All Moderator permissions
+   - Delete products
+   - Manage users and roles
+   - System management
+   - Audit log access
+   - Unlimited API access
+
+#### Permissions System
+25+ granular permissions including:
+- Product management (read, create, update, delete)
+- Footprint management (read, create, update, verify)
+- Scan operations (create, read own/all)
+- User data (read, update, delete, export)
+- Analytics (own, all, export)
+- API access (read, write)
+- Admin operations (manage users, roles, system)
+- Moderation (content, ban users)
+
+#### Feature Flags
+Dynamic feature access based on subscription:
+- **maxScansPerDay**: 50 (free) | Unlimited (premium)
+- **canExportData**: No (free) | Yes (premium)
+- **canAccessAPI**: No (free) | Yes (premium)
+- **canViewAdvancedAnalytics**: No (free) | Yes (premium)
+- **historyRetentionDays**: 7 (free) | Unlimited (premium)
+- **prioritySupport**: No (free) | Yes (premium)
+- **earlyAccess**: No (free) | Yes (premium)
+- **canUseARFeatures**: No (free) | Yes (premium)
+
+### 💳 Stripe Payment Integration
+
+#### Subscription Management
+- **Stripe Checkout**: Secure hosted checkout pages
+- **Auto-renewable subscriptions**: Monthly billing
+- **Promo codes**: Support for discount codes
+- **Billing address collection**: Automatic tax handling
+- **Family Sharing**: iOS StoreKit support (coming soon)
+
+#### Webhook Events
+Automated subscription lifecycle management:
+- `checkout.session.completed`: Upgrade user to premium
+- `customer.subscription.updated`: Sync subscription status
+- `customer.subscription.deleted`: Downgrade to free tier
+
+#### Payment Security
+- **PCI-DSS compliant**: Stripe handles all card data
+- **Webhook signature verification**: HMAC validation
+- **Idempotency**: Prevent duplicate charges
+- **Metadata tracking**: User ID in all transactions
+
+### 📊 GDPR Compliance
+
+#### Data Subject Rights
+- **Right to Access**: `GET /api/user/export` - Download all data as JSON
+- **Right to Deletion**: `DELETE /api/user/profile` - Permanent account deletion
+- **Right to Rectification**: `PUT /api/user/profile` - Update personal info
+- **Right to Portability**: Machine-readable JSON export
+
+#### Data Processing
+- **Data minimization**: Only collect necessary data
+- **Purpose limitation**: Clear data use policies
+- **Storage limitation**: Automatic data retention policies
+- **Transparency**: Clear privacy policy and consent flows
+
+### 🛡️ Additional Security Measures
+
+#### Audit Trail
+- All API requests logged with:
+  - Timestamp
+  - User ID (if authenticated)
+  - IP address
+  - User-Agent
+  - Action and resource
+  - Status code
+  - Response time
+
+#### Performance Monitoring
+- **X-Response-Time header**: Request duration tracking
+- **Performance metrics**: OpenTelemetry integration ready
+- **Error tracking**: Sentry integration
+
+#### Webhook Security
+- **Signature validation**: HMAC-SHA256 verification
+- **Timestamp validation**: Prevent replay attacks
+- **Secret rotation**: Support for webhook secret updates
+
+---
+
+## API Endpoints Added
+
+### Subscription Management
+```
+POST /api/subscription/create-checkout
+  - Creates Stripe checkout session
+  - Returns session ID and checkout URL
+  - Requires authentication
+
+POST /api/webhooks/stripe
+  - Handles Stripe webhook events
+  - Updates user subscription status
+  - Requires valid signature
+```
+
+### User Management
+```
+GET /api/user/profile
+  - Fetch user profile
+  - Returns user data (email, name, role, subscription)
+  - Requires authentication
+
+PUT /api/user/profile
+  - Update user profile
+  - Validates input with Zod
+  - Requires authentication
+
+DELETE /api/user/profile
+  - Delete user account
+  - Cascades to all user data
+  - Requires authentication
+
+GET /api/user/export
+  - Export all user data (GDPR)
+  - Returns JSON file
+  - Requires authentication
+  - Rate limited (3/day)
+```
+
+---
+
+## Security Best Practices Implemented
+
+### Dependency Security
+- Regular dependency updates
+- No deprecated packages
+- Minimal dependency surface
+- Audit logs for package changes
+
+### Environment Security
+- No secrets in codebase
+- `.env.example` for documentation only
+- Environment variable validation
+- Secure defaults
+
+### Database Security
+- Connection pooling
+- Prepared statements only (Prisma)
+- Row-level security ready
+- Encrypted at rest
+
+### API Security
+- Input validation on all endpoints
+- Output encoding
+- Error message sanitization (no stack traces in production)
+- Request size limits
+- Timeout configuration
+
+### Infrastructure Security
+- TLS 1.3 only
+- Perfect forward secrecy
+- OCSP stapling ready
+- DNS CAA records recommended
+
+---
+
+## Performance Optimizations
+
+### Caching Strategy
+- Redis caching layer (ready to integrate)
+- In-memory cache for hot data
+- CDN for static assets
+- Database query optimization
+
+### Rate Limiting Benefits
+- DDoS protection
+- Fair resource allocation
+- Cost optimization
+- User tier enforcement
+
+---
+
+## Monitoring & Observability
+
+### Metrics Collection
+- Request latency (X-Response-Time header)
+- Error rates
+- Rate limit hits
+- Security events
+
+### Logging
+- Structured JSON logs
+- Security event logs
+- Audit trail
+- Error tracking with Sentry
+
+### Alerting Ready
+- Rate limit violations
+- Suspicious activity
+- Failed authentication attempts
+- Webhook failures
+
+---
+
+## Production Readiness Checklist
+
+✅ **Security**
+- [x] Rate limiting implemented
+- [x] CSRF protection
+- [x] XSS protection
+- [x] SQL injection protection
+- [x] CORS configured
+- [x] Security headers
+- [x] Input validation
+- [x] Output encoding
+- [x] Audit logging
+
+✅ **Authentication & Authorization**
+- [x] Passkey authentication
+- [x] Role-based access control
+- [x] Permission system
+- [x] Feature flags
+- [x] Session management
+
+✅ **Payments**
+- [x] Stripe integration
+- [x] Subscription management
+- [x] Webhook handling
+- [x] Payment security
+
+✅ **Compliance**
+- [x] GDPR data export
+- [x] GDPR data deletion
+- [x] Privacy policy structure
+- [x] User consent flows
+
+✅ **Monitoring**
+- [x] Request logging
+- [x] Security event logging
+- [x] Performance metrics
+- [x] Error tracking ready
+
+🚧 **In Progress**
+- [ ] Real-time monitoring dashboard
+- [ ] Advanced analytics
+- [ ] A/B testing framework
+- [ ] Automated security scanning
+
+---
+
+**Last Updated**: 2025-11-11 03:00 UTC  
+**Version**: 1.1.0  
+**Commit**: `84a403c`
