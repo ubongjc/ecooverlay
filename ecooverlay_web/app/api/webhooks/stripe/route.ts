@@ -29,15 +29,32 @@ export async function POST(req: Request) {
         const session = event.data.object as Stripe.Checkout.Session
         const userId = session.metadata?.userId
 
-        if (userId && session.subscription) {
-          await prisma.user.update({
-            where: { id: userId },
-            data: {
-              subscription: 'premium',
-              role: 'premium',
-            },
-          })
+        if (!userId) {
+          console.error('checkout.session.completed: Missing userId in metadata')
+          return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
         }
+
+        if (!session.subscription) {
+          console.error('checkout.session.completed: Missing subscription')
+          return NextResponse.json({ error: 'Missing subscription' }, { status: 400 })
+        }
+
+        // Check if user exists before updating
+        const user = await prisma.user.findUnique({ where: { id: userId } })
+        if (!user) {
+          console.error(`checkout.session.completed: User ${userId} not found`)
+          return NextResponse.json({ error: 'User not found' }, { status: 404 })
+        }
+
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            subscription: 'premium',
+            role: 'premium',
+          },
+        })
+
+        console.log(`User ${userId} upgraded to premium`)
         break
       }
 
@@ -45,16 +62,28 @@ export async function POST(req: Request) {
         const subscription = event.data.object as Stripe.Subscription
         const userId = subscription.metadata?.userId
 
-        if (userId) {
-          const isActive = subscription.status === 'active'
-          await prisma.user.update({
-            where: { id: userId },
-            data: {
-              subscription: isActive ? 'premium' : 'free',
-              role: isActive ? 'premium' : 'user',
-            },
-          })
+        if (!userId) {
+          console.error('customer.subscription.updated: Missing userId in metadata')
+          return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
         }
+
+        // Check if user exists before updating
+        const user = await prisma.user.findUnique({ where: { id: userId } })
+        if (!user) {
+          console.error(`customer.subscription.updated: User ${userId} not found`)
+          return NextResponse.json({ error: 'User not found' }, { status: 404 })
+        }
+
+        const isActive = subscription.status === 'active'
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            subscription: isActive ? 'premium' : 'free',
+            role: isActive ? 'premium' : 'user',
+          },
+        })
+
+        console.log(`User ${userId} subscription status: ${subscription.status}`)
         break
       }
 
@@ -62,22 +91,34 @@ export async function POST(req: Request) {
         const subscription = event.data.object as Stripe.Subscription
         const userId = subscription.metadata?.userId
 
-        if (userId) {
-          await prisma.user.update({
-            where: { id: userId },
-            data: {
-              subscription: 'free',
-              role: 'user',
-            },
-          })
+        if (!userId) {
+          console.error('customer.subscription.deleted: Missing userId in metadata')
+          return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
         }
+
+        // Check if user exists before updating
+        const user = await prisma.user.findUnique({ where: { id: userId } })
+        if (!user) {
+          console.error(`customer.subscription.deleted: User ${userId} not found`)
+          return NextResponse.json({ error: 'User not found' }, { status: 404 })
+        }
+
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            subscription: 'free',
+            role: 'user',
+          },
+        })
+
+        console.log(`User ${userId} subscription cancelled`)
         break
       }
     }
 
     return NextResponse.json({ received: true })
   } catch (error) {
-    console.error('Error processing webhook:', error)
+    console.error('Error processing Stripe webhook:', error)
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
   }
 }

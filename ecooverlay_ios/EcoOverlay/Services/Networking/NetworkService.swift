@@ -89,28 +89,50 @@ class NetworkService: ObservableObject {
     }
     
     func getProduct(upc: String) async throws -> Product {
-        return try await request(endpoint: "/api/product/\(upc)")
+        // URL encode the UPC to handle special characters
+        guard let encodedUPC = upc.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            throw NetworkError.invalidURL
+        }
+        return try await request(endpoint: "/api/product/\(encodedUPC)")
     }
-    
+
     func createProduct(upc: String, name: String, brand: String?, category: String?) async throws -> Product {
-        let payload = [
-            "name": name,
-            "brand": brand ?? "",
-            "category": category ?? ""
-        ]
-        
+        // URL encode the UPC to handle special characters
+        guard let encodedUPC = upc.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            throw NetworkError.invalidURL
+        }
+
+        // Build payload only with non-nil values
+        var payload: [String: String] = ["name": name]
+
+        if let brand = brand {
+            payload["brand"] = brand
+        }
+
+        if let category = category {
+            payload["category"] = category
+        }
+
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let body = try encoder.encode(payload)
-        
-        return try await request(endpoint: "/api/product/\(upc)", method: "POST", body: body)
+
+        return try await request(endpoint: "/api/product/\(encodedUPC)", method: "POST", body: body)
     }
-    
+
     func getFootprints(productId: String) async throws -> [Footprint] {
-        return try await request(endpoint: "/api/footprint/\(productId)")
+        // URL encode the productId to handle special characters
+        guard let encodedId = productId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            throw NetworkError.invalidURL
+        }
+        return try await request(endpoint: "/api/footprint/\(encodedId)")
     }
-    
+
     func getAlternatives(productId: String) async throws -> [AltSuggestion] {
-        return try await request(endpoint: "/api/alternates/\(productId)")
+        // URL encode the productId to handle special characters
+        guard let encodedId = productId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            throw NetworkError.invalidURL
+        }
+        return try await request(endpoint: "/api/alternates/\(encodedId)")
     }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 
 const searchSchema = z.object({
   q: z.string().min(1).max(200),
@@ -23,21 +24,25 @@ export async function GET(request: NextRequest) {
 
     const validatedParams = searchSchema.parse(params)
 
-    // Build where clause
-    const where: any = {
-      OR: [
-        { name: { contains: validatedParams.q, mode: 'insensitive' } },
-        { brand: { contains: validatedParams.q, mode: 'insensitive' } },
-        { upc: { contains: validatedParams.q } },
+    // Build where clause with proper typing
+    const where: Prisma.ProductWhereInput = {
+      AND: [
+        // Search query across multiple fields
+        {
+          OR: [
+            { name: { contains: validatedParams.q, mode: 'insensitive' } },
+            { brand: { contains: validatedParams.q, mode: 'insensitive' } },
+            { upc: { contains: validatedParams.q } },
+          ],
+        },
+        // Additional filters
+        ...(validatedParams.category
+          ? [{ category: validatedParams.category }]
+          : []),
+        ...(validatedParams.brand
+          ? [{ brand: validatedParams.brand }]
+          : []),
       ],
-    }
-
-    if (validatedParams.category) {
-      where.category = validatedParams.category
-    }
-
-    if (validatedParams.brand) {
-      where.brand = validatedParams.brand
     }
 
     // Execute search with pagination

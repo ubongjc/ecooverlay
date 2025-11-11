@@ -45,39 +45,56 @@ export async function POST(req: Request) {
   // Handle the webhook
   const eventType = evt.type
 
-  if (eventType === 'user.created') {
-    const { id, email_addresses } = evt.data
-    
-    await prisma.user.create({
-      data: {
-        id,
-        email: email_addresses[0].email_address,
-        role: 'user',
-        subscription: 'free',
-      },
-    })
-  }
+  try {
+    if (eventType === 'user.created') {
+      const { id, email_addresses } = evt.data
 
-  if (eventType === 'user.updated') {
-    const { id, email_addresses } = evt.data
-    
-    await prisma.user.update({
-      where: { id },
-      data: {
-        email: email_addresses[0].email_address,
-      },
-    })
-  }
+      // Check if email_addresses array exists and has at least one email
+      if (!email_addresses || email_addresses.length === 0) {
+        console.error('No email addresses provided for user.created event')
+        return new Response('Error: No email addresses', { status: 400 })
+      }
 
-  if (eventType === 'user.deleted') {
-    const { id } = evt.data
-    
-    if (id) {
-      await prisma.user.delete({
-        where: { id },
+      await prisma.user.create({
+        data: {
+          id,
+          email: email_addresses[0].email_address,
+          role: 'user',
+          subscription: 'free',
+        },
       })
     }
-  }
 
-  return new Response('Webhook received', { status: 200 })
+    if (eventType === 'user.updated') {
+      const { id, email_addresses } = evt.data
+
+      // Check if email_addresses array exists and has at least one email
+      if (!email_addresses || email_addresses.length === 0) {
+        console.error('No email addresses provided for user.updated event')
+        return new Response('Error: No email addresses', { status: 400 })
+      }
+
+      await prisma.user.update({
+        where: { id },
+        data: {
+          email: email_addresses[0].email_address,
+        },
+      })
+    }
+
+    if (eventType === 'user.deleted') {
+      const { id } = evt.data
+
+      if (id) {
+        await prisma.user.delete({
+          where: { id },
+        })
+      }
+    }
+
+    return new Response('Webhook received', { status: 200 })
+  } catch (error) {
+    console.error('Error processing Clerk webhook:', error)
+    return new Response('Error processing webhook', { status: 500 })
+  }
 }
